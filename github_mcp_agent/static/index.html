@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>GitHub MCP Agent</title>
+  <style>
+    :root {
+      --bg: #0d1117;
+      --panel: #161b22;
+      --border: #30363d;
+      --text: #e6edf3;
+      --muted: #8b949e;
+      --accent: #2f81f7;
+      --ok: #3fb950;
+      --err: #f85149;
+      --user: #1f6feb;
+    }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; margin: 0; }
+    body {
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      display: flex;
+      flex-direction: column;
+    }
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+      padding: 0.9rem 1.25rem;
+      border-bottom: 1px solid var(--border);
+      background: var(--panel);
+    }
+    header h1 { font-size: 1.05rem; margin: 0; font-weight: 600; }
+    header p { margin: 0.15rem 0 0; color: var(--muted); font-size: 0.82rem; }
+    .status {
+      font-size: 0.78rem;
+      padding: 0.25rem 0.6rem;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      color: var(--muted);
+      white-space: nowrap;
+    }
+    .status.ready { color: var(--ok); border-color: #238636; }
+    .status.down { color: var(--err); border-color: var(--err); }
+    main {
+      flex: 1;
+      overflow: auto;
+      padding: 1.25rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.9rem;
+    }
+    .msg {
+      max-width: 46rem;
+      padding: 0.85rem 1rem;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      line-height: 1.5;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    .msg.user { align-self: flex-end; background: #13233a; border-color: var(--user); }
+    .msg.agent { align-self: flex-start; background: var(--panel); }
+    .msg .who { font-size: 0.72rem; color: var(--muted); margin-bottom: 0.35rem; text-transform: uppercase; letter-spacing: 0.04em; }
+    .traces { margin-top: 0.7rem; display: flex; flex-wrap: wrap; gap: 0.35rem; }
+    .chip {
+      font-size: 0.72rem;
+      padding: 0.15rem 0.45rem;
+      border-radius: 999px;
+      background: #21262d;
+      color: var(--muted);
+    }
+    .chip.err { color: var(--err); }
+    .suggestions { display: flex; flex-wrap: wrap; gap: 0.45rem; }
+    .suggestions button {
+      background: transparent;
+      color: var(--muted);
+      border: 1px dashed var(--border);
+      border-radius: 999px;
+      padding: 0.35rem 0.7rem;
+      cursor: pointer;
+      font-size: 0.8rem;
+    }
+    .suggestions button:hover { color: var(--text); border-color: var(--accent); }
+    form {
+      display: flex;
+      gap: 0.6rem;
+      padding: 0.9rem 1.25rem 1.2rem;
+      border-top: 1px solid var(--border);
+      background: var(--panel);
+    }
+    textarea {
+      flex: 1;
+      resize: none;
+      min-height: 2.7rem;
+      max-height: 8rem;
+      padding: 0.65rem 0.8rem;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: var(--bg);
+      color: var(--text);
+      font: inherit;
+    }
+    button.primary, button.ghost {
+      border-radius: 8px;
+      padding: 0.65rem 1rem;
+      font: inherit;
+      cursor: pointer;
+    }
+    button.primary { background: var(--accent); color: #fff; border: 0; }
+    button.primary:disabled { opacity: 0.5; cursor: not-allowed; }
+    button.ghost { background: transparent; color: var(--muted); border: 1px solid var(--border); }
+    .banner {
+      padding: 0.7rem 1rem;
+      border: 1px solid var(--err);
+      color: #ffb1af;
+      border-radius: 8px;
+      background: #2a1214;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div>
+      <h1>GitHub MCP Agent</h1>
+      <p>Ask about issues, pull requests, commits, and code — via MCP, not the GitHub REST API.</p>
+    </div>
+    <span id="status" class="status">connecting…</span>
+  </header>
+  <main id="log">
+    <div class="suggestions" id="suggestions">
+      <button type="button" data-q="What is octocat/Hello-World about?">Repo overview</button>
+      <button type="button" data-q="List the latest open issues in octocat/Hello-World">Open issues</button>
+      <button type="button" data-q="Summarize recent pull requests in octocat/Hello-World">Pull requests</button>
+      <button type="button" data-q="Show the latest commits in octocat/Hello-World">Commits</button>
+    </div>
+  </main>
+  <form id="form">
+    <button class="ghost" type="button" id="reset">Reset</button>
+    <textarea id="input" rows="1" placeholder="Ask about any GitHub repository…" autofocus></textarea>
+    <button class="primary" type="submit" id="send">Send</button>
+  </form>
+  <script>
+    const logEl = document.getElementById("log");
+    const form = document.getElementById("form");
+    const input = document.getElementById("input");
+    const send = document.getElementById("send");
+    const statusEl = document.getElementById("status");
+
+    function add(role, text, traces) {
+      const wrap = document.createElement("div");
+      wrap.className = "msg " + role;
+      const who = document.createElement("div");
+      who.className = "who";
+      who.textContent = role === "user" ? "You" : "Agent";
+      const body = document.createElement("div");
+      body.textContent = text;
+      wrap.appendChild(who);
+      wrap.appendChild(body);
+      if (traces && traces.length) {
+        const row = document.createElement("div");
+        row.className = "traces";
+        traces.forEach((t) => {
+          const chip = document.createElement("span");
+          chip.className = "chip" + (t.ok ? "" : " err");
+          chip.textContent = t.name + (t.ok ? "" : " !");
+          row.appendChild(chip);
+        });
+        wrap.appendChild(row);
+      }
+      logEl.appendChild(wrap);
+      wrap.scrollIntoView({ behavior: "smooth", block: "end" });
+    }
+
+    async function refreshHealth() {
+      try {
+        const res = await fetch("/api/health");
+        const data = await res.json();
+        if (data.ready) {
+          const repo = data.default_repo || "no default repo";
+          statusEl.textContent = "ready · " + data.tool_count + " MCP tools · " + repo;
+          statusEl.className = "status ready";
+        } else {
+          statusEl.textContent = "MCP offline";
+          statusEl.className = "status down";
+          if (data.error && !document.querySelector(".banner")) {
+            const banner = document.createElement("div");
+            banner.className = "banner";
+            banner.textContent = data.error;
+            logEl.prepend(banner);
+          }
+        }
+      } catch (err) {
+        statusEl.textContent = "UI offline";
+        statusEl.className = "status down";
+      }
+    }
+
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const message = input.value.trim();
+      if (!message) return;
+      input.value = "";
+      add("user", message);
+      send.disabled = true;
+      try {
+        const res = await fetch("/api/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ message }),
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          add("agent", data.detail || "Request failed.");
+        } else {
+          add("agent", data.text, data.traces);
+        }
+      } catch (err) {
+        add("agent", "Could not reach the web UI: " + err);
+      } finally {
+        send.disabled = false;
+        input.focus();
+      }
+    });
+
+    document.getElementById("reset").addEventListener("click", async () => {
+      await fetch("/api/reset", { method: "POST" });
+      logEl.querySelectorAll(".msg").forEach((node) => node.remove());
+    });
+
+    document.querySelectorAll("#suggestions button").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        input.value = btn.getAttribute("data-q");
+        form.requestSubmit();
+      });
+    });
+
+    input.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" && !event.shiftKey) {
+        event.preventDefault();
+        form.requestSubmit();
+      }
+    });
+
+    refreshHealth();
+  </script>
+</body>
+</html>

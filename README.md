@@ -1,27 +1,24 @@
 # GitHub MCP Agent
 
-Explore any GitHub repository in **plain English** — issues, pull requests, commits, repository info, and code — through the official [GitHub MCP Server](https://github.com/github/github-mcp-server), not custom GitHub REST/GraphQL calls.
+Explore any GitHub repository in **plain English** — issues, pull requests, commits, repository info, and code — through the official [GitHub MCP Server](https://github.com/github/github-mcp-server).
 
-A tool-calling LLM decides which MCP tools to invoke. The agent never talks to `api.github.com` itself.
+A tool-calling LLM chooses MCP tools. This project never calls `api.github.com` itself.
 
-**Repository:** [Memoona-Shahid/GitHub-MCP-Agent](https://github.com/Memoona-Shahid/GitHub-MCP-Agent)
-
----
-
-## Status
-
-| Module | What | State |
-|--------|------|--------|
-| 1 | Foundation — package, config, logging, errors, env files | **Done** |
-| 2 | GitHub MCP client (stdio Docker / remote HTTP / local binary) | **Done** |
-| 3 | OpenAI-compatible LLM adapter (tool calling) | **Done** |
-| 4 | Agent loop (natural language → MCP tools → answer) | **Done** |
-| 5 | CLI chat | **Done** |
-| 6 | Simple web UI | Next |
+**Repository:** [Memoona-Shahid/GitHub-MCP-Agent](https://github.com/Memoona-Shahid/GitHub-MCP-Agent.git)
 
 ---
 
-## Architecture (target)
+## What you can ask
+
+- “What is `octocat/Hello-World` about?”
+- “List open issues in `microsoft/vscode`”
+- “Summarize the latest pull requests”
+- “Show recent commits on `main`”
+- “What does `README.md` say?”
+
+---
+
+## Architecture
 
 ```
 User (CLI or browser)
@@ -29,7 +26,7 @@ User (CLI or browser)
         ▼
   github_mcp_agent.agent     ← tool-calling loop
         │
-        ├── llm_client       ← OpenAI-compatible chat.completions
+        ├── llm_client       ← OpenAI-compatible Chat Completions
         └── mcp_client       ← official MCP Python SDK
                     │
                     ▼
@@ -39,40 +36,27 @@ User (CLI or browser)
               GitHub platform
 ```
 
-No module other than the MCP client is allowed to call GitHub APIs.
-
-### Layout
-
-```
-GitHub-MCP-Agent/
-├── github_mcp_agent/
-│   ├── __init__.py
-│   ├── __main__.py          # python -m github_mcp_agent
-│   ├── config.py            # env-backed settings
-│   ├── logging_setup.py
-│   ├── exceptions.py
-│   ├── mcp_client.py        # official GitHub MCP Server client
-│   ├── llm_client.py        # OpenAI-compatible tool-calling LLM
-│   ├── agent.py             # natural-language tool-calling loop
-│   └── cli.py               # interactive terminal chat
-├── .env.example
-├── .gitignore
-├── requirements.txt
-└── README.md
-```
+| Module | File | Role |
+|--------|------|------|
+| 1 | `config.py`, `logging_setup.py`, `exceptions.py` | Settings, logging, errors |
+| 2 | `mcp_client.py` | GitHub MCP Server client (the only GitHub access path) |
+| 3 | `llm_client.py` | OpenAI-compatible tool calling |
+| 4 | `agent.py` | Natural language → MCP tools → answer |
+| 5 | `cli.py` | Interactive terminal chat |
+| 6 | `web.py` + `static/index.html` | Browser chat UI |
 
 ---
 
 ## Prerequisites
 
 - Python 3.10+
-- A [GitHub Personal Access Token](https://github.com/settings/personal-access-tokens) (classic or fine-grained). Typical scopes: `repo` (or `public_repo`) and `read:org`.
+- A [GitHub Personal Access Token](https://github.com/settings/personal-access-tokens) (classic or fine-grained). Typical scopes: `repo` (or `public_repo`) and `read:org`
 - An OpenAI-compatible API key (OpenAI, Groq, OpenRouter, Azure, Ollama, …)
-- **Docker** (recommended) so the agent can launch [`ghcr.io/github/github-mcp-server`](https://github.com/github/github-mcp-server) over stdio
+- **Docker Desktop** (recommended) so the agent can launch [`ghcr.io/github/github-mcp-server`](https://github.com/github/github-mcp-server)
 
 ---
 
-## Module 1 setup
+## Setup
 
 ```bash
 python -m venv .venv
@@ -88,11 +72,18 @@ copy .env.example .env          # Windows
 
 Edit `.env` and set at least:
 
-- `GITHUB_PERSONAL_ACCESS_TOKEN`
-- `OPENAI_API_KEY`
-- `LLM_MODEL` (and `OPENAI_BASE_URL` if you are not using OpenAI)
+| Variable | Purpose |
+|----------|---------|
+| `GITHUB_PERSONAL_ACCESS_TOKEN` | Authenticates the GitHub MCP Server |
+| `OPENAI_API_KEY` | Tool-calling LLM |
+| `LLM_MODEL` | e.g. `gpt-4o-mini` |
+| `OPENAI_BASE_URL` | Change this for Groq, OpenRouter, Ollama, Azure, … |
+| `GITHUB_MCP_MODE` | `docker` (default), `remote`, or `binary` |
+| `DEFAULT_REPO` | Optional `owner/name` used when a question omits the repo |
+| `GITHUB_TOOLSETS` | MCP tool groups. Default: `context,repos,issues,pull_requests,users` |
+| `WEB_HOST` / `WEB_PORT` | Browser UI bind address (`127.0.0.1:8000`) |
 
-Smoke-check the foundation (prints a **redacted** config summary):
+Confirm settings (tokens are masked):
 
 ```bash
 python -m github_mcp_agent --config
@@ -100,51 +91,9 @@ python -m github_mcp_agent --config
 
 ---
 
-## How GitHub access works
+## Run
 
-The agent starts the official [GitHub MCP Server](https://github.com/github/github-mcp-server) and uses **only** its MCP tools (`get_file_contents`, issue/PR tools, commit/repo tools, …). Nothing in this project calls `api.github.com` directly.
-
-Choose the transport with `GITHUB_MCP_MODE`:
-
-| Mode | When to use |
-|------|-------------|
-| `docker` (default) | Docker is installed; PAT is passed into the container |
-| `remote` | Use GitHub-hosted MCP at `https://api.githubcopilot.com/mcp/` |
-| `binary` | You built `github-mcp-server` locally |
-
-Toolsets are limited via `GITHUB_TOOLSETS` so the model sees a focused tool list (issues, PRs, repos/code, context).
-
-### Module 2 smoke test
-
-Requires `GITHUB_PERSONAL_ACCESS_TOKEN` in `.env` and (for the default mode) Docker Desktop running. The first Docker launch pulls `ghcr.io/github/github-mcp-server`.
-
-```bash
-python -m github_mcp_agent --list-tools
-python -m github_mcp_agent --call-tool get_me
-```
-
-### Module 3 smoke test
-
-Requires `OPENAI_API_KEY` (and `OPENAI_BASE_URL` / `LLM_MODEL` if you are not using OpenAI). This does **not** start GitHub MCP.
-
-```bash
-python -m github_mcp_agent --llm-ping
-```
-
-### Module 4 smoke test
-
-Requires both `GITHUB_PERSONAL_ACCESS_TOKEN` and `OPENAI_API_KEY`. Optional: set `DEFAULT_REPO=owner/name` in `.env`.
-
-```bash
-python -m github_mcp_agent --ask "What is octocat/Hello-World about?"
-python -m github_mcp_agent --ask "List the latest open issues in octocat/Hello-World"
-```
-
-The answer is printed to stdout. The MCP tools the model actually called are listed on stderr.
-
-### Module 5 — interactive CLI
-
-Starts a multi-turn chat. MCP connects once; later questions keep conversation context. `/reset` clears history without reconnecting.
+### Interactive CLI
 
 ```bash
 python -m github_mcp_agent --chat
@@ -154,10 +103,74 @@ python -m github_mcp_agent
 
 Slash commands: `/help`, `/tools`, `/repo`, `/reset`, `/exit`.
 
+### Browser UI
+
+```bash
+python -m github_mcp_agent --web
+```
+
+Open [http://127.0.0.1:8000](http://127.0.0.1:8000). The page talks to `/api/chat`, `/api/health`, and `/api/reset`. One MCP session is shared for the process; requests are serialized.
+
+### One-shot question
+
+```bash
+python -m github_mcp_agent --ask "What is octocat/Hello-World about?"
+python -m github_mcp_agent --ask "List the latest open issues in octocat/Hello-World"
+```
+
+### Diagnostics
+
+```bash
+python -m github_mcp_agent --list-tools
+python -m github_mcp_agent --call-tool get_me
+python -m github_mcp_agent --llm-ping
+```
+
+The first Docker launch pulls `ghcr.io/github/github-mcp-server` and can take a minute.
+
+---
+
+## How GitHub access works
+
+The agent starts the official GitHub MCP Server and uses **only** its tools. Nothing in this repo calls the GitHub REST or GraphQL API.
+
+| `GITHUB_MCP_MODE` | When to use |
+|-------------------|-------------|
+| `docker` (default) | Docker is installed; the PAT is passed into the container |
+| `remote` | GitHub-hosted MCP at `https://api.githubcopilot.com/mcp/` |
+| `binary` | You built `github-mcp-server` locally (`GITHUB_MCP_BINARY_PATH`) |
+
+Keep `GITHUB_TOOLSETS` focused so the model chooses tools more reliably. Commits and file browsing come from the `repos` toolset.
+
+---
+
+## Layout
+
+```
+GitHub-MCP-Agent/
+├── github_mcp_agent/
+│   ├── __init__.py
+│   ├── __main__.py
+│   ├── config.py
+│   ├── logging_setup.py
+│   ├── exceptions.py
+│   ├── mcp_client.py
+│   ├── llm_client.py
+│   ├── agent.py
+│   ├── cli.py
+│   ├── web.py
+│   └── static/index.html
+├── .env.example
+├── .gitignore
+├── requirements.txt
+└── README.md
+```
+
 ---
 
 ## Security
 
 - Secrets live in `.env` only. `.env` is gitignored.
-- Logs never print full tokens — `config.py` masks them.
+- Logs and `--config` never print full tokens.
 - Grant the PAT the minimum scopes you are comfortable giving an LLM.
+- The web UI binds to `127.0.0.1` by default; it is not an authenticated multi-user server.

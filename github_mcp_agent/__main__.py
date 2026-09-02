@@ -8,6 +8,7 @@ Run from the project root:
     python -m github_mcp_agent --call-tool get_me
     python -m github_mcp_agent --llm-ping
     python -m github_mcp_agent --ask "What is octocat/Hello-World about?"
+    python -m github_mcp_agent --web
 """
 
 from __future__ import annotations
@@ -63,6 +64,11 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="Print a redacted settings summary and exit.",
     )
+    parser.add_argument(
+        "--web",
+        action="store_true",
+        help="Start the browser chat UI (WEB_HOST / WEB_PORT).",
+    )
     args = parser.parse_args(argv)
 
     settings = get_settings()
@@ -71,6 +77,10 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.config:
         return _print_config(settings, log)
+    if args.web:
+        from github_mcp_agent.web import run_web
+
+        return run_web(settings)
     if args.ask:
         return asyncio.run(_run_ask(args.ask, log))
     if args.llm_ping:
