@@ -15,8 +15,8 @@ A tool-calling LLM decides which MCP tools to invoke. The agent never talks to `
 | 1 | Foundation — package, config, logging, errors, env files | **Done** |
 | 2 | GitHub MCP client (stdio Docker / remote HTTP / local binary) | **Done** |
 | 3 | OpenAI-compatible LLM adapter (tool calling) | **Done** |
-| 4 | Agent loop (natural language → MCP tools → answer) | Next |
-| 5 | CLI chat | Pending |
+| 4 | Agent loop (natural language → MCP tools → answer) | **Done** |
+| 5 | CLI chat | Next |
 | 6 | Simple web UI | Pending |
 
 ---
@@ -52,7 +52,8 @@ GitHub-MCP-Agent/
 │   ├── logging_setup.py
 │   ├── exceptions.py
 │   ├── mcp_client.py        # official GitHub MCP Server client
-│   └── llm_client.py        # OpenAI-compatible tool-calling LLM
+│   ├── llm_client.py        # OpenAI-compatible tool-calling LLM
+│   └── agent.py             # natural-language tool-calling loop
 ├── .env.example
 ├── .gitignore
 ├── requirements.txt
@@ -128,6 +129,17 @@ Requires `OPENAI_API_KEY` (and `OPENAI_BASE_URL` / `LLM_MODEL` if you are not us
 ```bash
 python -m github_mcp_agent --llm-ping
 ```
+
+### Module 4 smoke test
+
+Requires both `GITHUB_PERSONAL_ACCESS_TOKEN` and `OPENAI_API_KEY`. Optional: set `DEFAULT_REPO=owner/name` in `.env`.
+
+```bash
+python -m github_mcp_agent --ask "What is octocat/Hello-World about?"
+python -m github_mcp_agent --ask "List the latest open issues in octocat/Hello-World"
+```
+
+The answer is printed to stdout. The MCP tools the model actually called are listed on stderr.
 
 ---
 

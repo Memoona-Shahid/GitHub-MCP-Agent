@@ -1,4 +1,4 @@
-"""Entry point for foundation checks and MCP/LLM smoke tests.
+"""Entry point for foundation checks, MCP/LLM smoke tests, and one-shot questions.
 
 Run from the project root:
 
@@ -6,6 +6,7 @@ Run from the project root:
     python -m github_mcp_agent --list-tools
     python -m github_mcp_agent --call-tool get_me
     python -m github_mcp_agent --llm-ping
+    python -m github_mcp_agent --ask "What is octocat/Hello-World about?"
 """
 
 from __future__ import annotations
@@ -46,12 +47,19 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="Send a tiny prompt to the configured OpenAI-compatible LLM (no GitHub/MCP).",
     )
+    parser.add_argument(
+        "--ask",
+        metavar="QUESTION",
+        help="Ask one natural-language question (starts MCP + LLM agent loop).",
+    )
     args = parser.parse_args(argv)
 
     settings = get_settings()
     setup_logging(settings.log_level)
     log = get_logger("bootstrap")
 
+    if args.ask:
+        return asyncio.run(_run_ask(args.ask, log))
     if args.llm_ping:
         return asyncio.run(_run_llm_ping(log))
     if args.list_tools or args.call_tool:
@@ -82,6 +90,34 @@ def _print_config(settings: Settings, log: logging.Logger) -> int:
         return 0
 
     log.info("Required secrets are present (values are never printed)")
+    return 0
+
+
+async def _run_ask(question: str, log: logging.Logger) -> int:
+    from github_mcp_agent.agent import GitHubAgent
+
+    if not question.strip():
+        print("error: Question is empty.", file=sys.stderr)
+        return 2
+
+    try:
+        async with GitHubAgent() as agent:
+            answer = await agent.ask(question)
+    except GitHubMCPAgentError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+
+    print(answer.text)
+    if answer.tool_traces:
+        print(file=sys.stderr)
+        print(
+            f"MCP tools used ({len(answer.tool_traces)} call(s), {answer.llm_turns} LLM turn(s)):",
+            file=sys.stderr,
+        )
+        for trace in answer.tool_traces:
+            status = "ok" if trace.ok else "error"
+            print(f"  [{status}] {trace.name}({_brief_args(trace.arguments)})", file=sys.stderr)
+    log.info("Ask complete: %d tool call(s)", len(answer.tool_traces))
     return 0
 
 
@@ -122,6 +158,13 @@ async def _run_mcp_command(args: argparse.Namespace, log: logging.Logger) -> int
         print(f"error: {exc}", file=sys.stderr)
         return 1
     return 0
+
+
+def _brief_args(arguments: dict) -> str:
+    raw = json.dumps(arguments, default=str, ensure_ascii=False)
+    if len(raw) <= 140:
+        return raw
+    return raw[:137] + "..."
 
 
 if __name__ == "__main__":
