@@ -13,8 +13,8 @@ A tool-calling LLM decides which MCP tools to invoke. The agent never talks to `
 | Module | What | State |
 |--------|------|--------|
 | 1 | Foundation — package, config, logging, errors, env files | **Done** |
-| 2 | GitHub MCP client (stdio Docker / remote HTTP / local binary) | Next |
-| 3 | OpenAI-compatible LLM adapter (tool calling) | Pending |
+| 2 | GitHub MCP client (stdio Docker / remote HTTP / local binary) | **Done** |
+| 3 | OpenAI-compatible LLM adapter (tool calling) | Next |
 | 4 | Agent loop (natural language → MCP tools → answer) | Pending |
 | 5 | CLI chat | Pending |
 | 6 | Simple web UI | Pending |
@@ -50,7 +50,8 @@ GitHub-MCP-Agent/
 │   ├── __main__.py          # python -m github_mcp_agent
 │   ├── config.py            # env-backed settings
 │   ├── logging_setup.py
-│   └── exceptions.py
+│   ├── exceptions.py
+│   └── mcp_client.py        # official GitHub MCP Server client
 ├── .env.example
 ├── .gitignore
 ├── requirements.txt
@@ -96,9 +97,11 @@ python -m github_mcp_agent
 
 ---
 
-## How GitHub access works (later modules)
+## How GitHub access works
 
-The agent will start the official GitHub MCP Server and use its tools (`get_file_contents`, issue/PR tools, commit/repo tools, …). You choose the transport with `GITHUB_MCP_MODE`:
+The agent starts the official [GitHub MCP Server](https://github.com/github/github-mcp-server) and uses **only** its MCP tools (`get_file_contents`, issue/PR tools, commit/repo tools, …). Nothing in this project calls `api.github.com` directly.
+
+Choose the transport with `GITHUB_MCP_MODE`:
 
 | Mode | When to use |
 |------|-------------|
@@ -107,6 +110,15 @@ The agent will start the official GitHub MCP Server and use its tools (`get_file
 | `binary` | You built `github-mcp-server` locally |
 
 Toolsets are limited via `GITHUB_TOOLSETS` so the model sees a focused tool list (issues, PRs, repos/code, context).
+
+### Module 2 smoke test
+
+Requires `GITHUB_PERSONAL_ACCESS_TOKEN` in `.env` and (for the default mode) Docker Desktop running. The first Docker launch pulls `ghcr.io/github/github-mcp-server`.
+
+```bash
+python -m github_mcp_agent --list-tools
+python -m github_mcp_agent --call-tool get_me
+```
 
 ---
 

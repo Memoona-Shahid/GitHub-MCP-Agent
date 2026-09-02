@@ -6,8 +6,8 @@ python-dotenv>=1.0.1
 pydantic>=2.10.0
 pydantic-settings>=2.7.0
 
-# Official MCP Python SDK (client talks to GitHub MCP Server)
-mcp>=1.12.0
+# Official MCP Python SDK v2 (Client + StdioServerParameters)
+mcp>=2.1.0
 
 # OpenAI-compatible tool-calling LLM
 openai>=1.60.0
@@ -19,5 +19,5 @@ rich>=13.9.0
 fastapi>=0.115.0
 uvicorn[standard]>=0.34.0
 
-# HTTP client used by MCP remote transport and health checks
-httpx>=0.28.0
+# Remote MCP transport (also a dependency of mcp)
+httpx2>=2.0.0
