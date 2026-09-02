@@ -14,8 +14,8 @@ A tool-calling LLM decides which MCP tools to invoke. The agent never talks to `
 |--------|------|--------|
 | 1 | Foundation — package, config, logging, errors, env files | **Done** |
 | 2 | GitHub MCP client (stdio Docker / remote HTTP / local binary) | **Done** |
-| 3 | OpenAI-compatible LLM adapter (tool calling) | Next |
-| 4 | Agent loop (natural language → MCP tools → answer) | Pending |
+| 3 | OpenAI-compatible LLM adapter (tool calling) | **Done** |
+| 4 | Agent loop (natural language → MCP tools → answer) | Next |
 | 5 | CLI chat | Pending |
 | 6 | Simple web UI | Pending |
 
@@ -51,7 +51,8 @@ GitHub-MCP-Agent/
 │   ├── config.py            # env-backed settings
 │   ├── logging_setup.py
 │   ├── exceptions.py
-│   └── mcp_client.py        # official GitHub MCP Server client
+│   ├── mcp_client.py        # official GitHub MCP Server client
+│   └── llm_client.py        # OpenAI-compatible tool-calling LLM
 ├── .env.example
 ├── .gitignore
 ├── requirements.txt
@@ -118,6 +119,14 @@ Requires `GITHUB_PERSONAL_ACCESS_TOKEN` in `.env` and (for the default mode) Doc
 ```bash
 python -m github_mcp_agent --list-tools
 python -m github_mcp_agent --call-tool get_me
+```
+
+### Module 3 smoke test
+
+Requires `OPENAI_API_KEY` (and `OPENAI_BASE_URL` / `LLM_MODEL` if you are not using OpenAI). This does **not** start GitHub MCP.
+
+```bash
+python -m github_mcp_agent --llm-ping
 ```
 
 ---

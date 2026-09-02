@@ -1,10 +1,11 @@
-"""Entry point for foundation checks and MCP client smoke tests.
+"""Entry point for foundation checks and MCP/LLM smoke tests.
 
 Run from the project root:
 
     python -m github_mcp_agent
     python -m github_mcp_agent --list-tools
     python -m github_mcp_agent --call-tool get_me
+    python -m github_mcp_agent --llm-ping
 """
 
 from __future__ import annotations
@@ -40,12 +41,19 @@ def main(argv: list[str] | None = None) -> int:
         default="{}",
         help='JSON object of tool arguments, e.g. {"owner":"octocat","repo":"Hello-World"}',
     )
+    parser.add_argument(
+        "--llm-ping",
+        action="store_true",
+        help="Send a tiny prompt to the configured OpenAI-compatible LLM (no GitHub/MCP).",
+    )
     args = parser.parse_args(argv)
 
     settings = get_settings()
     setup_logging(settings.log_level)
     log = get_logger("bootstrap")
 
+    if args.llm_ping:
+        return asyncio.run(_run_llm_ping(log))
     if args.list_tools or args.call_tool:
         return asyncio.run(_run_mcp_command(args, log))
 
@@ -74,6 +82,20 @@ def _print_config(settings: Settings, log: logging.Logger) -> int:
         return 0
 
     log.info("Required secrets are present (values are never printed)")
+    return 0
+
+
+async def _run_llm_ping(log: logging.Logger) -> int:
+    from github_mcp_agent.llm_client import LLMClient
+
+    try:
+        async with LLMClient() as llm:
+            reply = await llm.ping()
+            print(reply)
+            log.info("LLM ping ok (model=%s)", llm.model)
+    except GitHubMCPAgentError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
     return 0
 
 
