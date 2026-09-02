@@ -16,8 +16,8 @@ A tool-calling LLM decides which MCP tools to invoke. The agent never talks to `
 | 2 | GitHub MCP client (stdio Docker / remote HTTP / local binary) | **Done** |
 | 3 | OpenAI-compatible LLM adapter (tool calling) | **Done** |
 | 4 | Agent loop (natural language → MCP tools → answer) | **Done** |
-| 5 | CLI chat | Next |
-| 6 | Simple web UI | Pending |
+| 5 | CLI chat | **Done** |
+| 6 | Simple web UI | Next |
 
 ---
 
@@ -53,7 +53,8 @@ GitHub-MCP-Agent/
 │   ├── exceptions.py
 │   ├── mcp_client.py        # official GitHub MCP Server client
 │   ├── llm_client.py        # OpenAI-compatible tool-calling LLM
-│   └── agent.py             # natural-language tool-calling loop
+│   ├── agent.py             # natural-language tool-calling loop
+│   └── cli.py               # interactive terminal chat
 ├── .env.example
 ├── .gitignore
 ├── requirements.txt
@@ -94,7 +95,7 @@ Edit `.env` and set at least:
 Smoke-check the foundation (prints a **redacted** config summary):
 
 ```bash
-python -m github_mcp_agent
+python -m github_mcp_agent --config
 ```
 
 ---
@@ -140,6 +141,18 @@ python -m github_mcp_agent --ask "List the latest open issues in octocat/Hello-W
 ```
 
 The answer is printed to stdout. The MCP tools the model actually called are listed on stderr.
+
+### Module 5 — interactive CLI
+
+Starts a multi-turn chat. MCP connects once; later questions keep conversation context. `/reset` clears history without reconnecting.
+
+```bash
+python -m github_mcp_agent --chat
+# or, in a terminal with no other flags:
+python -m github_mcp_agent
+```
+
+Slash commands: `/help`, `/tools`, `/repo`, `/reset`, `/exit`.
 
 ---
 

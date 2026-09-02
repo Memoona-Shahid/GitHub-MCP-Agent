@@ -2,7 +2,8 @@
 
 Run from the project root:
 
-    python -m github_mcp_agent
+    python -m github_mcp_agent --config
+    python -m github_mcp_agent --chat
     python -m github_mcp_agent --list-tools
     python -m github_mcp_agent --call-tool get_me
     python -m github_mcp_agent --llm-ping
@@ -52,20 +53,40 @@ def main(argv: list[str] | None = None) -> int:
         metavar="QUESTION",
         help="Ask one natural-language question (starts MCP + LLM agent loop).",
     )
+    parser.add_argument(
+        "--chat",
+        action="store_true",
+        help="Start an interactive chat (default when run in a terminal with no other flags).",
+    )
+    parser.add_argument(
+        "--config",
+        action="store_true",
+        help="Print a redacted settings summary and exit.",
+    )
     args = parser.parse_args(argv)
 
     settings = get_settings()
     setup_logging(settings.log_level)
     log = get_logger("bootstrap")
 
+    if args.config:
+        return _print_config(settings, log)
     if args.ask:
         return asyncio.run(_run_ask(args.ask, log))
     if args.llm_ping:
         return asyncio.run(_run_llm_ping(log))
     if args.list_tools or args.call_tool:
         return asyncio.run(_run_mcp_command(args, log))
+    if args.chat or _should_start_chat():
+        from github_mcp_agent.cli import run_chat
+
+        return asyncio.run(run_chat(settings))
 
     return _print_config(settings, log)
+
+
+def _should_start_chat() -> bool:
+    return sys.stdin.isatty() and sys.stdout.isatty()
 
 
 def _print_config(settings: Settings, log: logging.Logger) -> int:
