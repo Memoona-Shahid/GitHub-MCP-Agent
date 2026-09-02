@@ -1,0 +1,23 @@
+# GitHub MCP Agent
+# Install: pip install -r requirements.txt
+
+# Environment / settings
+python-dotenv>=1.0.1
+pydantic>=2.10.0
+pydantic-settings>=2.7.0
+
+# Official MCP Python SDK (client talks to GitHub MCP Server)
+mcp>=1.12.0
+
+# OpenAI-compatible tool-calling LLM
+openai>=1.60.0
+
+# CLI
+rich>=13.9.0
+
+# Simple web UI
+fastapi>=0.115.0
+uvicorn[standard]>=0.34.0
+
+# HTTP client used by MCP remote transport and health checks
+httpx>=0.28.0
